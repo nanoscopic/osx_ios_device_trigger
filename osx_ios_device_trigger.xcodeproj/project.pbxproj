@@ -257,6 +257,8 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = QNYBTNP38J;
+				LIBRARY_SEARCH_PATHS = /usr/lib;
+				OTHER_LDFLAGS = "-lcurl";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -266,6 +268,8 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = QNYBTNP38J;
+				LIBRARY_SEARCH_PATHS = /usr/lib;
+				OTHER_LDFLAGS = "-lcurl";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;

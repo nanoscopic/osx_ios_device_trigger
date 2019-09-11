@@ -3,6 +3,7 @@
 #include <IOKit/IOMessage.h>
 #include <IOKit/IOCFPlugIn.h>
 #include <IOKit/usb/IOUSBLib.h>
+#include <curl/curl.h>
 
 #include<set>
 std::set<UInt16> prodIds = {
@@ -36,6 +37,7 @@ typedef struct USBDeviceInfo {
     IOUSBInterfaceInterface942 **iface2; // interface squared
     CFStringRef             name;
     UInt32                  locationID;
+    char                    *uuid;
 } USBDeviceInfo;
 
 static IONotificationPortRef globalDevicePort;
@@ -44,19 +46,26 @@ static io_iterator_t         globalDeviceIter;
 static io_iterator_t         globalInterfaceIter;
 static bool gdone = false;
 
+void notify_disconnect( char *serial );
+
 // Recieves kIOGeneralInterest notifications
 void DeviceNotification(void *voidDevInfo, io_service_t service, natural_t messageType, void *messageArgument) {
     //kern_return_t kres;
     USBDeviceInfo *devInfo = (USBDeviceInfo *) voidDevInfo;
+    
     if( messageType == kIOMessageServiceIsTerminated ) { // See IOMessage.h for other types
         fprintf(stderr, "Device removed\n");
         fprintf(stderr, "  Name: "); CFShow( devInfo->name );
         fprintf(stderr, "  LocationID: 0x%lx.\n\n", (unsigned long) devInfo->locationID);
         
+        if( devInfo->uuid ) {
+            notify_disconnect( devInfo->uuid );
+        }
         // Cleanup
         CFRelease( devInfo->name );
         if( devInfo->interface ) /*kr = */(*devInfo->interface)->Release( devInfo->interface );
         /*kres = */IOObjectRelease( devInfo->notification );
+        if( devInfo->uuid ) free( devInfo->uuid );
         free(devInfo);
     }
 }
@@ -174,6 +183,36 @@ void InterfaceAdded(void *refCon, io_iterator_t iterator) {
     }
 }
 
+void notify_connect( char *serial ) {
+    char postdata[255];
+    snprintf( postdata, 255, "uuid=%s", serial );
+    const char *postUrl = "http://localhost/dev_connect";
+    CURL *eh = curl_easy_init();
+    curl_easy_setopt( eh, CURLOPT_POSTFIELDS, postdata );
+    curl_easy_setopt( eh, CURLOPT_URL, postUrl );
+    CURLcode errCode = curl_easy_perform( eh );
+    if( errCode ) {
+        const char *err = curl_easy_strerror( errCode );
+        fprintf( stderr, "Error posting %s to %s: %s\n", postdata, postUrl, err );
+    }
+    curl_easy_cleanup( eh );
+}
+
+void notify_disconnect( char *serial ) {
+    char postdata[255];
+    snprintf( postdata, 255, "uuid=%s", serial );
+    const char *postUrl = "http://localhost/dev_disconnect";
+    CURL *eh = curl_easy_init();
+    curl_easy_setopt( eh, CURLOPT_POSTFIELDS, postdata );
+    curl_easy_setopt( eh, CURLOPT_URL, postUrl );
+    CURLcode errCode = curl_easy_perform( eh );
+    if( errCode ) {
+        const char *err = curl_easy_strerror( errCode );
+        fprintf( stderr, "Error posting %s to %s: %s\n", postdata, postUrl, err );
+    }
+    curl_easy_cleanup( eh );
+}
+
 // Callback from IOServiceAddMatchingNotification
 void DeviceAdded(void *refCon, io_iterator_t iterator) {
     kern_return_t kres;
@@ -248,6 +287,8 @@ void DeviceAdded(void *refCon, io_iterator_t iterator) {
                         serial[i] = buffer[i + 1];
                     serial[i] = 0;
                     fprintf(stderr, "  Serial: %s\n", serial);
+                    devInfo->uuid = strdup( serial );
+                    notify_connect( serial );
                 }
             }
         }
