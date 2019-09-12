@@ -9,7 +9,7 @@
 std::set<UInt16> prodIds = {
     0x1290,0x1292,0x1294,0x1297,0x129a,0x129c,
     0x129f,0x12a0,0x12a2,0x12a3,0x12a4,0x12a5,
-    0x12a6,0x12a8,0x12a9,0x12ab
+    0x12a6,0x12a8,0x12a9,0x12ab,0x12aa
 };
 #include<map>
 const std::map<UInt16,const char *> prodMap = {
@@ -28,7 +28,8 @@ const std::map<UInt16,const char *> prodMap = {
     {0x12a6,"iPad 3 3G"},
     {0x12a8,"iPhone 5-8/X"},
     {0x12a9,"iPad 2"},
-    {0x12ab,"iPad 4 Mini"}
+    {0x12ab,"iPad 4 Mini"},
+    {0x12aa,"iPod touch"}
 };
 
 typedef struct USBDeviceInfo {
@@ -186,7 +187,7 @@ void InterfaceAdded(void *refCon, io_iterator_t iterator) {
 void notify_connect( char *serial ) {
     char postdata[255];
     snprintf( postdata, 255, "uuid=%s", serial );
-    const char *postUrl = "http://localhost/dev_connect";
+    const char *postUrl = "http://localhost:8027/dev_connect";
     CURL *eh = curl_easy_init();
     curl_easy_setopt( eh, CURLOPT_POSTFIELDS, postdata );
     curl_easy_setopt( eh, CURLOPT_URL, postUrl );
@@ -201,7 +202,7 @@ void notify_connect( char *serial ) {
 void notify_disconnect( char *serial ) {
     char postdata[255];
     snprintf( postdata, 255, "uuid=%s", serial );
-    const char *postUrl = "http://localhost/dev_disconnect";
+    const char *postUrl = "http://localhost:8027/dev_disconnect";
     CURL *eh = curl_easy_init();
     curl_easy_setopt( eh, CURLOPT_POSTFIELDS, postdata );
     curl_easy_setopt( eh, CURLOPT_URL, postUrl );
