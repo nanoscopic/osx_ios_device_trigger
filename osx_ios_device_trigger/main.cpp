@@ -28,7 +28,7 @@ const std::map<UInt16,const char *> prodMap = {
     {0x12a6,"iPad 3 3G"},
     {0x12a8,"iPhone 5-8/X"},
     {0x12a9,"iPad 2"},
-    {0x12ab,"iPad 4 Mini"},
+    {0x12ab,"iPad 4"},
     {0x12aa,"iPod touch"}
 };
 
@@ -48,6 +48,7 @@ static io_iterator_t         globalInterfaceIter;
 static bool gdone = false;
 
 void notify_disconnect( char *serial );
+void notify_interface( char *serial, UInt8 cls, UInt8 subcls, UInt16 vendor, UInt16 product  );
 
 // Recieves kIOGeneralInterest notifications
 void DeviceNotification(void *voidDevInfo, io_service_t service, natural_t messageType, void *messageArgument) {
@@ -128,6 +129,57 @@ void InterfaceAdded(void *refCon, io_iterator_t iterator) {
         printf("  Vendor: %04x\n", devVendor);
         printf("  Product: %04x\n", devProduct);
         
+        IOUSBDeviceInterface942     **dev;
+        io_service_t    USBdevice = 0;
+        SInt32             score;
+        kr = (*iface2)->GetDevice(iface2, &USBdevice);
+        kr = IOCreatePlugInInterfaceForService(USBdevice,
+                                               kIOUSBDeviceUserClientTypeID,
+                                               kIOCFPlugInInterfaceID,
+                                               &plugin,
+                                               &score);
+        if( KERN_SUCCESS != kres ) { fprintf( stderr, "get plugin failed: 0x%08x.\n", kres ); }
+        
+        kr = (*plugin)->QueryInterface(plugin,
+                                       CFUUIDGetUUIDBytes(kIOUSBDeviceInterfaceID942 ),
+                                       (LPVOID *) &dev);
+        if( KERN_SUCCESS != kres ) { fprintf( stderr, "get device interface failed: 0x%08x.\n", kres ); }
+        
+        char *uuid;
+        { // Get USB serial number
+            UInt8    snsi = 0x00;
+            kr = (*dev)->USBGetSerialNumberStringIndex( dev, &snsi );
+            if( kr != kIOReturnSuccess ) {
+                fprintf( stderr, "Get Serial index 0x%08x.\n", kr );
+                uuid = NULL;
+            }
+            else {
+                IOUSBDevRequest req;
+                UInt16 buffer[256];
+                char serial[256];
+                req.bmRequestType = USBmakebmRequestType(kUSBIn, kUSBStandard, kUSBDevice);
+                req.bRequest = kUSBRqGetDescriptor;
+                req.wValue = (kUSBStringDesc << 8) | snsi;
+                req.wIndex = 0x0409; //language ID (en-us) for serial number string
+                req.pData = buffer;
+                req.wLength = 256;//sizeof(buffer);
+                kr = (*dev)->DeviceRequest(dev, &req);
+                if( kr == kIOReturnSuccess && req.wLenDone > 0 ) {
+                    int i, count;
+                    // skip first word, and copy the rest to the serial string, changing shorts to bytes.
+                    count = (req.wLenDone - 1) / 2;
+                    for (i = 0; i < count; i++)
+                        serial[i] = buffer[i + 1];
+                    serial[i] = 0;
+                    fprintf(stderr, "  Serial: %s\n", serial);
+                    uuid = strdup( serial );
+                }
+            }
+        }
+        
+        notify_interface( uuid, intfClass, intfSubClass, devVendor, devProduct );
+        if( uuid ) free( uuid );
+        
         if( !gdone && intfClass == 0x0a && intfSubClass == 0x00 ) {
             gdone = 1;
             if( KERN_SUCCESS != kres ) { fprintf( stderr, "open interface failed: 0x%08x.\n", kres ); }
@@ -182,6 +234,22 @@ void InterfaceAdded(void *refCon, io_iterator_t iterator) {
         // Release pluginInterface
         (*plugin)->Release(plugin);
     }
+}
+
+
+void notify_interface( char *serial, UInt8 cls, UInt8 subcls, UInt16 vendor, UInt16 product  ) {
+    char postdata[355];
+    snprintf( postdata, 355, "{\"uuid\":\"%s\",\"class\":\"%02x\",\"subclass\":\"%02x\",\"vendor\":\"%04x\",\"product\":\"%04x\"}", serial, cls, subcls, vendor, product );
+    const char *postUrl = "http://localhost:8027/new_interface";
+    CURL *eh = curl_easy_init();
+    curl_easy_setopt( eh, CURLOPT_POSTFIELDS, postdata );
+    curl_easy_setopt( eh, CURLOPT_URL, postUrl );
+    CURLcode errCode = curl_easy_perform( eh );
+    if( errCode ) {
+        const char *err = curl_easy_strerror( errCode );
+        fprintf( stderr, "Error posting %s to %s: %s\n", postdata, postUrl, err );
+    }
+    curl_easy_cleanup( eh );
 }
 
 void notify_connect( char *serial ) {
@@ -251,6 +319,19 @@ void DeviceAdded(void *refCon, io_iterator_t iterator) {
         }
         
         printf("Device added\n");
+        
+        UInt8 numConf;
+        kr = (*iface)->GetNumberOfConfigurations(iface, &numConf);
+        printf("  Number of configurations:%i\n", numConf);
+        
+        /*UInt8 confI;
+        IOUSBConfigurationDescriptorPtr confDescr;
+        for( confI=0; confI < numConf; confI++ ) {
+            (*iface)->GetConfigurationDescriptorPtr(iface, confI, &confDescr);
+            UInt8 confVal;
+            confVal = confDescr->bConfigurationValue;
+            printf("   conf:%i val:%x\n", confI, confVal );
+        }*/
         
         { // Get deviceName
             io_name_t deviceName;
