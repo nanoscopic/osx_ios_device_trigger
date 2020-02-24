@@ -255,8 +255,9 @@
 		6D3B3CBE2328522B000AE6D8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = QNYBTNP38J;
+				DEVELOPMENT_TEAM = "";
 				LIBRARY_SEARCH_PATHS = /usr/lib;
 				OTHER_LDFLAGS = "-lcurl";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -266,8 +267,9 @@
 		6D3B3CBF2328522B000AE6D8 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = QNYBTNP38J;
+				DEVELOPMENT_TEAM = "";
 				LIBRARY_SEARCH_PATHS = /usr/lib;
 				OTHER_LDFLAGS = "-lcurl";
 				PRODUCT_NAME = "$(TARGET_NAME)";
